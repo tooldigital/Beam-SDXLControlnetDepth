@@ -81,5 +81,5 @@ depth_image = get_depth_map(image)
 
 #depth_image.save(f"depthstormtrooper.png")
 #pipe.unet = torch.compile(pipe.unet, mode="reduce-overhead", fullgraph=True)
-images = pipe(prompt, image=depth_image, num_inference_steps=30, controlnet_conditioning_scale=controlnet_conditioning_scale,).images
+images = pipe(prompt, image=depth_image, num_inference_steps=30, controlnet_conditioning_scale=controlnet_conditioning_scale,).image[0]
 #images[0].save(f"stormtrooper.png")
