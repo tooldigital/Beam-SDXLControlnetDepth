@@ -31,7 +31,7 @@ app = App(
                 "Pillow==10.0.0",
                 "torch==2.0.1",
                 "transformers==4.27",
-                "xformers==0.0.21"
+                "xformers==0.0.21" 
             ],
             commands=["apt-get update && apt-get install ffmpeg libsm6 libxext6  -y"],
         ),
