@@ -94,27 +94,46 @@ def set_style(prompt, style):
 
     return final_prompt,negative_prompt
 
+def resize_to_allowed_dimensions(width,height):
+    allowed_dimensions = [
+            (512, 2048), (512, 1984), (512, 1920), (512, 1856),
+            (576, 1792), (576, 1728), (576, 1664), (640, 1600),
+            (640, 1536), (704, 1472), (704, 1408), (704, 1344),
+            (768, 1344), (768, 1280), (832, 1216), (832, 1152),
+            (896, 1152), (896, 1088), (960, 1088), (960, 1024),
+            (1024, 1024), (1024, 960), (1088, 960), (1088, 896),
+            (1152, 896), (1152, 832), (1216, 832), (1280, 768),
+            (1344, 768), (1408, 704), (1472, 704), (1536, 640),
+            (1600, 640), (1664, 576), (1728, 576), (1792, 576),
+            (1856, 512), (1920, 512), (1984, 512), (2048, 512)
+    ]
+    aspect_ratio = width / height
+    # Find the closest allowed dimensions that maintain the aspect ratio
+    closest_dimensions = min(allowed_dimensions,key=lambda dim: abs(dim[0] / dim[1] - aspect_ratio))
+    return closest_dimensions
+
 
 def get_depth_map(image, feature_extractor, depth_estimator):
     image = feature_extractor(images=image, return_tensors="pt").pixel_values.to("cuda")
-
     with torch.no_grad(), torch.autocast("cuda"):
         depth_map = depth_estimator(image).predicted_depth
 
-    depth_map = torch.nn.functional.interpolate(
-        depth_map.unsqueeze(1),
-        size=(1024, 1024),
-        mode="bicubic",
-        align_corners=False,
-    )
-    depth_min = torch.amin(depth_map, dim=[1, 2, 3], keepdim=True)
-    depth_max = torch.amax(depth_map, dim=[1, 2, 3], keepdim=True)
-    depth_map = (depth_map - depth_min) / (depth_max - depth_min)
-    image = torch.cat([depth_map] * 3, dim=1)
+        height, width = image.shape[2], image.shape[3]
 
-    image = image.permute(0, 2, 3, 1).cpu().numpy()[0]
-    image = PIL.Image.fromarray((image * 255.0).clip(0, 255).astype(np.uint8))
-    return image
+        depth_map = torch.nn.functional.interpolate(
+            depth_map.unsqueeze(1),
+            size=(height, width),
+            mode="bicubic",
+            align_corners=False,
+        )
+        depth_min = torch.amin(depth_map, dim=[1, 2, 3], keepdim=True)
+        depth_max = torch.amax(depth_map, dim=[1, 2, 3], keepdim=True)
+        depth_map = (depth_map - depth_min) / (depth_max - depth_min)
+        image = torch.cat([depth_map] * 3, dim=1)
+        image = image.permute(0, 2, 3, 1).cpu().numpy()[0]
+        image = PIL.Image.fromarray((image * 255.0).clip(0, 255).astype(np.uint8))
+
+        return image
 
 def load_models():
     
@@ -158,21 +177,23 @@ def doSDXL(**inputs):
     prompt = inputs["prompt"]
     style = inputs["style"]
     seed = inputs["seed"]
-    w = inputs["width"]
-    h = inputs["height"]
+    condition_scale = inputs["condition_scale"]
+    image_data = inputs["image_data"]
 
     if(seed == 0):
         seed = random.randint(0, MAX_SEED)
     
     generator = torch.Generator().manual_seed(seed)
 
-    prompt = "stormtrooper lecture, photorealistic"
-    image = load_image("https://huggingface.co/lllyasviel/sd-controlnet-depth/resolve/main/images/stormtrooper.png")
-    controlnet_conditioning_scale = 0.5  # recommended for good generalization
+   
+    #create depth image
+    incimage = PIL.Image.open(BytesIO(base64.b64decode(image_data))).convert("RGB")
+    image_width, image_height = incimage.size
+    new_width, new_height = resize_to_allowed_dimensions(image_width, image_height)
 
-    depth_image = get_depth_map(image, feature_extractor, depth_estimator)
+    depth_image = get_depth_map(incimage, feature_extractor, depth_estimator)
 
-    image = pipe(prompt, image=depth_image, num_inference_steps=30, controlnet_conditioning_scale=controlnet_conditioning_scale,).image[0]
+    image = pipe(prompt,image=depth_image, num_inference_steps=40, height=new_height, width=new_width,guidance_scale=15, num_images_per_prompt=1, generator=generator,controlnet_conditioning_scale=condition_scale).images[0]
 
     buffered = BytesIO()
     image.save(buffered, format='JPEG',quality=80)
