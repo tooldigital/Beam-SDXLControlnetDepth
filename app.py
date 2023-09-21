@@ -185,6 +185,7 @@ def doSDXL(**inputs):
     
     generator = torch.Generator().manual_seed(seed)
 
+    fprompt, fnegprompt = set_style(prompt,style)
    
     #create depth image
     incimage = PIL.Image.open(BytesIO(base64.b64decode(image_data))).convert("RGB")
@@ -193,7 +194,7 @@ def doSDXL(**inputs):
 
     depth_image = get_depth_map(incimage, feature_extractor, depth_estimator)
 
-    image = pipe(prompt,image=depth_image, num_inference_steps=40, height=new_height, width=new_width,guidance_scale=15, num_images_per_prompt=1, generator=generator,controlnet_conditioning_scale=condition_scale).images[0]
+    image = pipe(fprompt, prompt_2="", negative_prompt=fnegprompt, negative_prompt_2="",image=depth_image, num_inference_steps=40, height=new_height, width=new_width,guidance_scale=15, num_images_per_prompt=1, generator=generator,controlnet_conditioning_scale=condition_scale).images[0]
 
     buffered = BytesIO()
     image.save(buffered, format='JPEG',quality=80)
