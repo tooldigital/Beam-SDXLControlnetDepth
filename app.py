@@ -178,6 +178,7 @@ def doSDXL(**inputs):
     style = inputs["style"]
     seed = inputs["seed"]
     condition_scale = inputs["condition_scale"]
+    guidance_scale = inputs["guidance_scale"]
     image_data = inputs["image_data"]
 
     if(seed == 0):
@@ -194,7 +195,7 @@ def doSDXL(**inputs):
 
     depth_image = get_depth_map(incimage, feature_extractor, depth_estimator)
 
-    image = pipe(fprompt, prompt_2="", negative_prompt=fnegprompt, negative_prompt_2="",image=depth_image, num_inference_steps=40, height=new_height, width=new_width,guidance_scale=15, num_images_per_prompt=1, generator=generator,controlnet_conditioning_scale=condition_scale).images[0]
+    image = pipe(prompt=fprompt, prompt_2="", negative_prompt=fnegprompt, negative_prompt_2="",image=depth_image, num_inference_steps=40, height=new_height, width=new_width,guidance_scale=guidance_scale, num_images_per_prompt=1, generator=generator,controlnet_conditioning_scale=condition_scale).images[0]
 
     buffered = BytesIO()
     image.save(buffered, format='JPEG',quality=80)
